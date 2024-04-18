@@ -68,7 +68,7 @@ set( GENERYC_SRC
 
     Lib/DebugServices/DebugServices.c
     Lib/RingBuff/RingBuff.c
-    Lib/Lsm303blhc/Lsm303blhc.c
+    Lib/Lsm303dlhc/Lsm303dlhc.c
 )
 
 set(GENERYC_PATH
@@ -90,7 +90,7 @@ set(GENERYC_PATH
 
     Lib/DebugServices
     Lib/RingBuff
-    Lib/Lsm303blhc
+    Lib/Lsm303dlhc
 )
 
 set (RTT_SRC
