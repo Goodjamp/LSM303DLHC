@@ -4,26 +4,36 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef bool (*I2cTxCb)(uint8_t devAdd, uint8_t regAdd, uint8_t regNumber, uint8_t *txData);
-typedef bool (*I2cRxCb)(uint8_t devAdd, uint8_t regAdd, uint8_t regNumber, uint8_t *rxData);
-typedef bool (*Lsm303dlhcMMesCompleteCb)(uint8_t Lsm303dlhcMagnetic);
-
-typedef struct {
-    I2cTxCb txCb;
-    I2cRxCb rxCb;
-    bool bussy;
-} Lsm303dlhcH;
-
 typedef struct {
     uint16_t x;
     uint16_t y;
     uint16_t z;
 } Lsm303dlhcMagnetic;
 
+typedef bool (*I2cTxCb)(uint8_t devAdd, uint8_t regAdd, uint8_t *data, uint8_t dataNumber);
+typedef bool (*I2cRxCb)(uint8_t devAdd, uint8_t regAdd, uint8_t *data, uint8_t dataNumber);
+typedef bool (*Lsm303dlhcMMesCompleteCb)(Lsm303dlhcMagnetic rawMagnetic, uint16_t angle);
+
+typedef enum {
+    LSM303DLHC_STATE_NON,
+    LSM303DLHC_STATE_MES_BLOCKING,
+    LSM303DLHC_STATE_MES_NO_BLOCKING,
+} Lsm303dlhcState;
+
+typedef struct {
+    I2cTxCb txCb;
+    I2cRxCb rxCb;
+    Lsm303dlhcMMesCompleteCb mMesCompleteCb;
+    Lsm303dlhcState state;
+    bool bussy;
+    bool dataReady;
+    uint8_t mData[6];
+} Lsm303dlhcH;
+
 typedef enum {
     LSM303DLHC_M_RATE_0_75,
     LSM303DLHC_M_RATE_1_5,
-    LSM303DLHC_M_RATE_3_0,
+    LSM303DLHC_M_RATE_3,
     LSM303DLHC_M_RATE_7_5,
     LSM303DLHC_M_RATE_15,
     LSM303DLHC_M_RATE_30,
@@ -46,28 +56,29 @@ typedef enum {
     LSM303DLHC_STATUS_HANDLER_NULL_ERROR,
     LSM303DLHC_STATUS_CB_NULL_ERROR,
     LSM303DLHC_STATUS_CB_ERROR, // Any of CB function return *false*
-    LSM303DLHC_OUT_OF_LINE_ERROR, // In case of succsesfull communication, but verify data is wrong
-    LSM303DLHC_GAIN_ERROR,
-    LSM303DLHC_RATE_ERROR,
-    LSM303DLHC_VERIFY_ERROR,
-    LSM303DLHC_BUSSY_ERROR,
-    LSM303DLHC_TIMEOUTE_ERROR, // The I2C communication timeout occurred
+    LSM303DLHC_STATUS_OUT_OF_LINE_ERROR, // In case of succsesfull communication, but verify data is wrong
+    LSM303DLHC_STATUS_GAIN_ERROR,
+    LSM303DLHC_STATUS_RATE_ERROR,
+    LSM303DLHC_STATUS_VERIFY_ERROR,
+    LSM303DLHC_STATUS_BUSSY_ERROR,
+    LSM303DLHC_STATUS_TIMEOUTE_ERROR, // The I2C communication timeout occurred
 } Lsm303dlhcStatus;
 
 /**
- * @brief Init the magnetic measurements part of the lsm303dhlc sensor
+ * @brief Init the magnetic measurements part of the lsm303dlhc sensor
  */
 Lsm303dlhcStatus lsm303dlhcMInit(Lsm303dlhcH *handler, I2cTxCb txCb, I2cRxCb rxCb);
 Lsm303dlhcStatus lsm303dlhcMSetRate(Lsm303dlhcH *handler, Lsm303dlhcMRate rate);
 Lsm303dlhcStatus lsm303dlhcMSetGain(Lsm303dlhcH *handler, Lsm303dlhcMGain gain);
 Lsm303dlhcStatus lsm303dlhcMesMBlocking(Lsm303dlhcH *handler, Lsm303dlhcMagnetic *magnetic);
-Lsm303dlhcStatus lsm303dlhcMesM(Lsm303dlhcH *handler, Lsm303dlhcMMesCompleteCb *mesCompleteCb);
-Lsm303dlhcStatus lsm303dlhcMesMStart(Lsm303dlhcH *handler, Lsm303dlhcMMesCompleteCb *mesCompleteCb);
+Lsm303dlhcStatus lsm303dlhcMesM(Lsm303dlhcH *handler, Lsm303dlhcMMesCompleteCb mesCompleteCb);
+Lsm303dlhcStatus lsm303dlhcMesMStart(Lsm303dlhcH *handler, Lsm303dlhcMMesCompleteCb mesCompleteCb);
+Lsm303dlhcStatus lsm303dlhcMesMStop(Lsm303dlhcH *handler);
 
 /**
  * @brief User call from the DRDY interrupt
  */
-Lsm303dlhcStatus lsm303dlhcDrdy(Lsm303dlhcH *handler);
-Lsm303dlhcStatus lsm303dlhcI2cComplete(Lsm303dlhcH *handler);
+void lsm303dlhcDrdy(Lsm303dlhcH *handler);
+void lsm303dlhcI2cComplete(Lsm303dlhcH *handler);
 
 #endif

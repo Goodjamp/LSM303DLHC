@@ -12,26 +12,24 @@ typedef enum {
 } I2cResult;
 
 typedef enum {
-    I2C_TARGET_SSD1306,
+    I2C_TARGET_LSM303DLHC,
 } I2cTarget;
 
 typedef struct {
-    void (*txComplete)(bool txSuccess);
-} I2cSsd1306Cb;
+    void (*transactionComplete)(bool txSuccess);
+} I2cLsm303dlhcCb;
 
 typedef struct {
     uint8_t dummy;
-} Ssd1306Settings;
+    I2cLsm303dlhcCb cb;
+} Lsm303dlhcSettings;
 
 typedef union {
-    I2cSsd1306Cb ssd1306;
-} I2cCb;
-
-typedef union {
-    Ssd1306Settings ssd1306;
+    Lsm303dlhcSettings lsm303dlhc;
 } I2cSettings;
 
-I2cResult i2cInit(I2cTarget i2cTarget, I2cSettings settings, I2cCb cb);
-I2cResult i2cTx(I2cTarget i2cTarget, uint8_t *buff, uint32_t size);
+I2cResult i2cInit(I2cTarget i2cTarget, I2cSettings settings);
+I2cResult i2cTx(I2cTarget i2cTarget, uint8_t devAddr, uint8_t regAddr, uint8_t *buff, uint32_t size);
+I2cResult i2cRx(I2cTarget i2cTarget, uint8_t devAddr, uint8_t regAddr, uint8_t *buff, uint32_t size);
 
 #endif
