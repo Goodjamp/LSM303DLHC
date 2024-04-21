@@ -9,6 +9,7 @@ typedef enum {
     I2C_TARGET_ERROR,
     I2C_BUFF_NULL_ERROR,
     I2C_DATA_SIZE_0_ERROR,
+    I2C_BUSSY,
 } I2cResult;
 
 typedef enum {
@@ -20,7 +21,6 @@ typedef struct {
 } I2cLsm303dlhcCb;
 
 typedef struct {
-    uint8_t dummy;
     I2cLsm303dlhcCb cb;
 } Lsm303dlhcSettings;
 

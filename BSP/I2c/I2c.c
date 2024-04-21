@@ -7,11 +7,15 @@
 #include "stm32f4xx_ll_rcc.h"
 #include "BSP.h"
 #include "services.h"
+#include "DebugServices.h"
 
-#define SSD1306_I2C_ADDR 0x78
+#define I2C_CONCAT_2(X, Y)     X##_##Y
+#define I2C_CONCAT(X, Y)       I2C_CONCAT_2(X, Y)
 
-#define I2C_CONCAT_2(X, Y)    X##_##Y    
-#define I2C_CONCAT(X, Y)      I2C_CONCAT_2(X, Y)     
+#define I2C_RX_ADDR(X)         ((X << 1) + 1)
+#define I2C_TX_ADDR(X)         (X << 1)
+
+#define I2C_WAITE_BUSSY_CNT    10000
 
 /*
  * PE  - packet error
@@ -56,7 +60,7 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
      ********************************DMA*******************************************
      */
     servicesEnablePerephr(LSM303DLHC_I2C_DMA);
-    
+
     /*
      * Configure DMA I2C Tx stream
      */
@@ -68,7 +72,7 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
     dmaInitStruct.PeriphOrM2MSrcDataSize = LL_DMA_PDATAALIGN_BYTE;
     dmaInitStruct.MemoryOrM2MDstDataSize = LL_DMA_MDATAALIGN_BYTE;
     dmaInitStruct.Channel = LSM303DLHC_I2C_TX_DMA_CHANNEL;
-    dmaInitStruct.Priority = LL_DMA_PRIORITY_MEDIUM; 
+    dmaInitStruct.Priority = LL_DMA_PRIORITY_MEDIUM;
     dmaInitStruct.FIFOMode = LL_DMA_FIFOMODE_DISABLE;
     dmaInitStruct.FIFOThreshold = 0;
     dmaInitStruct.MemBurst = LL_DMA_MBURST_SINGLE;
@@ -86,9 +90,9 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
 
     LL_DMA_Init(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_RX_DMA_STREAM, &dmaInitStruct);
 
-    NVIC_SetPriority(DMA1_Stream1_IRQn, 6);
     LL_DMA_EnableIT_TC(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM);
     LL_DMA_EnableIT_TE(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM); // Transfer error interrupt
+    NVIC_SetPriority(LSM303DLHC_I2C_TX_DMA_STREAM_IRQ, 6);
 
     /*
      ********************************I2C*******************************************
@@ -105,14 +109,14 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
 
     NVIC_SetPriority(I2C1_EV_IRQn, 6);
     NVIC_SetPriority(I2C1_ER_IRQn, 6);
-    //NVIC_EnableIRQ(I2C1_EV_IRQn);
-    //NVIC_EnableIRQ(I2C1_ER_IRQn);
 
     return I2C_OK;
 }
 
 static I2cResult i2cLsm303dlhcTx(uint8_t devAddr, uint8_t *buff, uint32_t size)
 {
+    uint32_t cntBussy = I2C_WAITE_BUSSY_CNT;
+
     if (buff == NULL) {
         return I2C_BUFF_NULL_ERROR;
     }
@@ -120,15 +124,28 @@ static I2cResult i2cLsm303dlhcTx(uint8_t devAddr, uint8_t *buff, uint32_t size)
     if (size == 0) {
         return I2C_DATA_SIZE_0_ERROR;
     }
-    i2cLsm3030dlhcState.address = devAddr;
+
+    /*
+     * Waite to complete last Transaction
+     */
+    while (LL_I2C_IsActiveFlag_BUSY(LSM303DLHC_I2C) && cntBussy--) {
+    }
+
+    if (cntBussy == 0) {
+        if (i2cLsm3030dlhcState.cb.transactionComplete != NULL) {
+            i2cLsm3030dlhcState.cb.transactionComplete(false);
+        }
+        return I2C_BUSSY;
+    }
+
+    i2cLsm3030dlhcState.address = I2C_TX_ADDR(devAddr);
     i2cLsm3030dlhcState.buff = buff;
     i2cLsm3030dlhcState.buffSize = size;
+    i2cLsm3030dlhcState.state = I2C_LSM303DLHC_STATE_TX_SB;
 
     LL_DMA_SetDataLength(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM, size);
     LL_DMA_SetMemoryAddress(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM, (uint32_t)buff);
-    LL_DMA_EnableStream(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM);
 
-//    LL_I2C_AcknowledgeNextData(LSM303DLHC_I2C, LL_I2C_ACK);
     LL_I2C_ClearFlag_STOP(LSM303DLHC_I2C);
     LL_I2C_ClearFlag_ADDR(LSM303DLHC_I2C);
     NVIC_EnableIRQ(I2C1_EV_IRQn);
@@ -141,31 +158,40 @@ static I2cResult i2cLsm303dlhcTx(uint8_t devAddr, uint8_t *buff, uint32_t size)
 static inline void i2cLsm303dlhcIrqH(void)
 {
     bool isError = false;
+    if (LSM303DLHC_I2C->SR1 == 0 && LSM303DLHC_I2C->SR2 == 0) {
+        return;
+    }
 
     switch (i2cLsm3030dlhcState.state) {
     case I2C_LSM303DLHC_STATE_TX_SB:
         if (LL_I2C_IsActiveFlag_SB(LSM303DLHC_I2C) == false) {
             isError = true;
         } else {
-            i2cLsm3030dlhcState.state = I2C_LSM303DLHC_STATE_TX_ADDRESS; 
-            LL_I2C_EnableDMAReq_TX(LSM303DLHC_I2C);// The DMAEN bit must be set before ADDR event
+            i2cLsm3030dlhcState.state = I2C_LSM303DLHC_STATE_TX_ADDRESS;
             LL_I2C_TransmitData8(LSM303DLHC_I2C, i2cLsm3030dlhcState.address);
         }
         break;
 
-    case I2C_LSM303DLHC_STATE_TX_ADDRESS:
-        if (LL_I2C_IsActiveFlag_ADDR(LSM303DLHC_I2C) == false) {
-            isError = true;
-        } else {
-            /*
-             * Start DMA
-             */
-            i2cLsm3030dlhcState.state = I2C_LSM303DLHC_STATE_TX_COMLETE;
-            LL_DMA_SetMemoryAddress(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM, (uint32_t)i2cLsm3030dlhcState.buff);
-            LL_DMA_SetDataLength(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM, (uint32_t)i2cLsm3030dlhcState.buff);
-            NVIC_EnableIRQ(LSM303DLHC_I2C_TX_DMA_STREAM_IRQ);
+    case I2C_LSM303DLHC_STATE_TX_ADDRESS: {
+        LL_I2C_EnableDMAReq_TX(LSM303DLHC_I2C);// The DMAEN bit must be set before ADDR event
+
+        uint32_t addrStatus = LL_I2C_IsActiveFlag_ADDR(LSM303DLHC_I2C);
+        uint32_t mslStatus = LL_I2C_IsActiveFlag_MSL(LSM303DLHC_I2C);
+
+        if (mslStatus) {
+            if (addrStatus == 0) {
+                isError = true;
+            } else {
+                /*
+                * Start DMA
+                */
+                i2cLsm3030dlhcState.state = I2C_LSM303DLHC_STATE_TX_COMLETE;
+                NVIC_EnableIRQ(LSM303DLHC_I2C_TX_DMA_STREAM_IRQ);
+                LL_DMA_EnableStream(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_TX_DMA_STREAM);
+            }
         }
         break;
+    }
 
     case I2C_LSM303DLHC_STATE_TX_COMLETE:
         if (LL_I2C_IsActiveFlag_BTF(LSM303DLHC_I2C) == false) {
@@ -178,6 +204,8 @@ static inline void i2cLsm303dlhcIrqH(void)
             if (i2cLsm3030dlhcState.cb.transactionComplete != NULL) {
                 i2cLsm3030dlhcState.cb.transactionComplete(true);
             }
+            NVIC_DisableIRQ(I2C1_EV_IRQn);
+            NVIC_DisableIRQ(I2C1_ER_IRQn);
         }
         break;
     }
@@ -187,6 +215,8 @@ static inline void i2cLsm303dlhcIrqH(void)
      */
     if (isError) {
         i2cLsm3030dlhcState.cb.transactionComplete(false);
+        NVIC_DisableIRQ(I2C1_EV_IRQn);
+        NVIC_DisableIRQ(I2C1_ER_IRQn);
     }
 }
 
@@ -199,6 +229,7 @@ void DMA1_Stream1_IRQHandler(void)
         LL_DMA_ClearFlag_TE1(LSM303DLHC_I2C_DMA);
     }
     NVIC_DisableIRQ(LSM303DLHC_I2C_TX_DMA_STREAM_IRQ);
+    LL_I2C_DisableDMAReq_TX(LSM303DLHC_I2C);// The DMAEN bit must be set before ADDR event
 }
 
 void I2C1_EV_IRQHandler(void)
