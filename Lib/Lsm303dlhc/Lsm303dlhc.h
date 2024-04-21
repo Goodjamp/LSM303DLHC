@@ -10,8 +10,8 @@ typedef struct {
     uint16_t z;
 } Lsm303dlhcMagnetic;
 
-typedef bool (*I2cTxCb)(uint8_t devAdd, uint8_t regAdd, uint8_t *data, uint8_t dataNumber);
-typedef bool (*I2cRxCb)(uint8_t devAdd, uint8_t regAdd, uint8_t *data, uint8_t dataNumber);
+typedef bool (*I2cTxCb)(uint8_t devAdd, uint8_t *data, uint8_t dataNumber);
+typedef bool (*I2cRxCb)(uint8_t devAdd, uint8_t txData, uint8_t *data, uint8_t dataNumber);
 typedef bool (*Lsm303dlhcMMesCompleteCb)(Lsm303dlhcMagnetic rawMagnetic, uint16_t angle);
 
 typedef enum {

@@ -85,15 +85,15 @@ static inline Lsm303dlhcStatus lsm303dlhcGetReg(Lsm303dlhcH *handler, uint8_t ad
 static inline Lsm303dlhcStatus lsm303dlhcSetReg(Lsm303dlhcH *handler, uint8_t address,
                                                 uint8_t value)
 {
-    uint8_t txData[] = {LSM303DLHC_M_TX_ADDRESS, address, value};
+    uint8_t txData[] = {address, value};
 
     handler->bussy = false;
-    if (handler->txCb(LSM303DLHC_M_ADDRESS, address, txData, sizeof(txData)) == false) {
+    if (handler->txCb(LSM303DLHC_M_ADDRESS, txData, sizeof(txData)) == false) {
         return LSM303DLHC_STATUS_CB_ERROR;
     }
 
     /*
-     * waite to complete transaction
+     * Waite to complete transaction
      */
     if (lsm303dlhcWait(handler) == true) {
         return LSM303DLHC_STATUS_TIMEOUTE_ERROR;
