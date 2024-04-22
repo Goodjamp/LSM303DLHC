@@ -58,7 +58,7 @@ typedef enum {
 
 static inline bool lsm303dlhcWait(Lsm303dlhcH *handler)
 {
-    uint32_t cnt = 0;
+    volatile uint32_t cnt = 0;
 
     while (handler->bussy && cnt++ < LSM303DLHC_BUSSY_CNT_MAX) {}
     return cnt == LSM303DLHC_BUSSY_CNT_MAX;

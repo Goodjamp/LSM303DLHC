@@ -31,7 +31,7 @@ typedef enum {
     I2C_LSM303DLHC_STATE_RX_SP,
 } I2CLsm303dlhcTxState;
 
-static struct {
+volatile static struct {
     I2cLsm303dlhcCb cb;
     uint8_t address;
     I2CLsm303dlhcTxState state;
@@ -121,7 +121,7 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
 
 static I2cResult i2cLsm303dlhcTx(uint8_t devAddr, uint8_t *buff, uint32_t size)
 {
-    uint32_t cntBussy = I2C_WAITE_BUSSY_CNT;
+    volatile uint32_t cntBussy = I2C_WAITE_BUSSY_CNT;
 
     if (buff == NULL) {
         return I2C_BUFF_NULL_ERROR;
@@ -222,9 +222,6 @@ volatile static uint32_t i2cSr2 = 0;
 static inline void i2cLsm303dlhcIrqH(void)
 {
     bool isError = false;
-    if (LSM303DLHC_I2C->SR1 == 0) {
-        return;
-    }
 
     switch (i2cLsm3030dlhcState.state) {
     case I2C_LSM303DLHC_STATE_TX_S:
@@ -262,7 +259,6 @@ static inline void i2cLsm303dlhcIrqH(void)
         if (LL_I2C_IsActiveFlag_BTF(LSM303DLHC_I2C) == false) {
             isError = true;
         } else {
-
             if (i2cLsm3030dlhcState.genStop == true) {
                 LL_I2C_GenerateStopCondition(LSM303DLHC_I2C);
             } else {
@@ -283,18 +279,16 @@ static inline void i2cLsm303dlhcIrqH(void)
         break;
 
     case I2C_LSM303DLHC_STATE_RX_S:
-        debugServicesPinSet(DebugPin2);
         if (LL_I2C_IsActiveFlag_SB(LSM303DLHC_I2C) == false) {
             isError = true;
         } else {
             i2cLsm3030dlhcState.state = I2C_LSM303DLHC_STATE_RX_TX_ADDRESS;
             LL_I2C_TransmitData8(LSM303DLHC_I2C, I2C_RX_ADDR(i2cLsm3030dlhcState.address));
         }
-        debugServicesPinClear(DebugPin2);
+
         break;
 
     case I2C_LSM303DLHC_STATE_RX_TX_ADDRESS: {
-        debugServicesPinSet(DebugPin3);
         LL_I2C_EnableDMAReq_RX(LSM303DLHC_I2C);// The DMAEN bit must be set before ADDR event
 
         if (i2cLsm3030dlhcState.buffRxSize >= 2) {
@@ -307,7 +301,6 @@ static inline void i2cLsm303dlhcIrqH(void)
             LL_I2C_AcknowledgeNextData(LSM303DLHC_I2C, LL_I2C_NACK);
         }
 
-        i2cSr1 = LSM303DLHC_I2C->SR1;
         uint32_t addrStatus = LL_I2C_IsActiveFlag_ADDR(LSM303DLHC_I2C);
         uint32_t mslStatus = LL_I2C_IsActiveFlag_MSL(LSM303DLHC_I2C);
         i2cSr2 = LSM303DLHC_I2C->SR2;
@@ -330,7 +323,6 @@ static inline void i2cLsm303dlhcIrqH(void)
                 LL_DMA_EnableStream(LSM303DLHC_I2C_DMA, LSM303DLHC_I2C_RX_DMA_STREAM);
             }
         }
-        debugServicesPinClear(DebugPin3);
         break;
     }
 
@@ -408,9 +400,12 @@ void LSM303DLHC_I2C_RX_DMA_STREAM_IRQHandler(void)
 
 void I2C1_EV_IRQHandler(void)
 {
-    debugServicesPinSet(DebugPin1);
+    i2cSr1 = LSM303DLHC_I2C->SR1;
+    if (((I2C_CR1_START_Msk & LSM303DLHC_I2C->CR1) && LL_I2C_IsActiveFlag_BTF(LSM303DLHC_I2C))
+        || (LSM303DLHC_I2C->SR1 == 0)) {
+        return;
+    }
     i2cLsm303dlhcIrqH();
-    debugServicesPinClear(DebugPin1);
 }
 
 /*

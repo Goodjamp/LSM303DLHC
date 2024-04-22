@@ -28,6 +28,7 @@ set( APP_PATH
 
 set( BSP_SRC
     BSP/I2c/I2c.c
+    BSP/ExtEv/ExtEv.c
     BSP/SystemClock/SystemClock.c
     BSP/Services/services.c
 )
@@ -35,6 +36,7 @@ set( BSP_SRC
 set( BSP_PATH
     BSP
     BSP/I2c
+    BSP/ExtEv
     BSP/SystemClock
     BSP/Services
 )
