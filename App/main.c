@@ -3,15 +3,21 @@
 
 #include "SystemClock.h"
 #include "I2c.h"
+#include "ExtEv.h"
 #include "DebugServices.h"
 #include "Lsm303dlhc.h"
 
+
 void i2cTransactionComplete(bool txSuccess);
+void extEvDrdy(void);
 volatile bool txCInProcess = false;
 Lsm303dlhcH lsm3030glhcHandler;
 
-const I2cSettings i2cLsm303dlhcSettings = {
-    .lsm303dlhc.cb = { i2cTransactionComplete},
+I2cSettings i2cLsm303dlhcSettings = {
+    .lsm303dlhc.cb = {i2cTransactionComplete},
+};
+ExtEvSettings extEvLsm303dlhcSettings = {
+    .lsm303dlhc.extEvCb = extEvDrdy
 };
 
 void i2cTransactionComplete(bool txSuccess)
@@ -21,6 +27,11 @@ void i2cTransactionComplete(bool txSuccess)
     }
     txCInProcess = false;
     lsm303dlhcI2cComplete(&lsm3030glhcHandler);
+}
+
+void extEvDrdy(void)
+{
+    lsm303dlhcDrdy(&lsm3030glhcHandler);
 }
 
 bool lsm3030dlhcI2cTx(uint8_t devAdd, uint8_t *data, uint8_t dataNumber)
@@ -51,6 +62,7 @@ void main(void)
     debugServicesInit(NULL);
 
     i2cInit(I2C_TARGET_LSM303DLHC, i2cLsm303dlhcSettings);
+    extEvInit(EXT_EV_TARGET_LSM303DLHC, extEvLsm303dlhcSettings);
     //lsm303dlhcMInit(&lsm3030glhcHandler, lsm3030dlhcI2cTx, lsm3030dlhcI2cRx);
     uint8_t txBuff[] = {0x00, 0x07 << 2};
 
