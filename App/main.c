@@ -25,8 +25,13 @@ void delay(uint32_t cnt)
     while(cnt--){}
 }
 
+#define DEVICE_ADDREEE    0x1E
+
 void main(void)
 {
+    uint8_t address = 0x00;
+    uint8_t rxBuff[12];
+
     /* Configure the system clock */
     systemClockInit();
     debugServicesInit(NULL);
@@ -36,8 +41,11 @@ void main(void)
 
     for (;;){
         txCInProcess = true;
-        i2cTx(I2C_TARGET_LSM303DLHC, 0x1E, txBuff, sizeof(txBuff));
+        i2cTx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, txBuff, sizeof(txBuff));
         while (txCInProcess){}
+
+        i2cRx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, &address, 1, rxBuff, 1);
+        i2cRx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, &address, 1, rxBuff, 12);
         //delay(1000);
     }
 }

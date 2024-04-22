@@ -70,7 +70,7 @@ typedef enum {
 Lsm303dlhcStatus lsm303dlhcMInit(Lsm303dlhcH *handler, I2cTxCb txCb, I2cRxCb rxCb);
 Lsm303dlhcStatus lsm303dlhcMSetRate(Lsm303dlhcH *handler, Lsm303dlhcMRate rate);
 Lsm303dlhcStatus lsm303dlhcMSetGain(Lsm303dlhcH *handler, Lsm303dlhcMGain gain);
-Lsm303dlhcStatus lsm303dlhcMesMBlocking(Lsm303dlhcH *handler, Lsm303dlhcMagnetic *magnetic);
+Lsm303dlhcStatus lsm303dlhcMesMBlocking(Lsm303dlhcH *handler, Lsm303dlhcMagnetic *magnetic, uint16_t angle);
 Lsm303dlhcStatus lsm303dlhcMesM(Lsm303dlhcH *handler, Lsm303dlhcMMesCompleteCb mesCompleteCb);
 Lsm303dlhcStatus lsm303dlhcMesMStart(Lsm303dlhcH *handler, Lsm303dlhcMMesCompleteCb mesCompleteCb);
 Lsm303dlhcStatus lsm303dlhcMesMStop(Lsm303dlhcH *handler);

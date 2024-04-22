@@ -30,6 +30,7 @@ typedef union {
 
 I2cResult i2cInit(I2cTarget i2cTarget, I2cSettings settings);
 I2cResult i2cTx(I2cTarget i2cTarget, uint8_t devAddr, uint8_t *buff, uint32_t size);
-I2cResult i2cRx(I2cTarget i2cTarget, uint8_t devAddr, uint8_t regAddr, uint8_t *buff, uint32_t size);
+I2cResult i2cRx(I2cTarget i2cTarget, uint8_t devAddr, uint8_t *buffTx, uint8_t buffTxSize,
+                uint8_t *buff, uint32_t size);
 
 #endif
