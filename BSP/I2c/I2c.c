@@ -16,6 +16,7 @@
 #define I2C_TX_ADDR(X)         (X << 1)
 
 #define I2C_WAITE_BUSSY_CNT    10000
+#define I2C_WAITE_RESET_CNT    100
 
 /*
  * PE  - packet error
@@ -46,6 +47,7 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
     LL_DMA_InitTypeDef dmaInitStruct = {0};
     LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
     LL_RCC_ClocksTypeDef rcc_clocks;
+    volatile uint32_t resetCnt = I2C_WAITE_RESET_CNT;
 
     /*
      ********************************GPIO*******************************************
@@ -103,6 +105,17 @@ static I2cResult i2cLsm303dlhcConfig(const Lsm303dlhcSettings *settings)
     /*
      ********************************I2C*******************************************
      */
+
+    /*
+     * Reset I2C before configure
+     */
+
+    servicesSetResetPerephr(LSM303DLHC_I2C);
+
+    while (resetCnt--) {
+    }
+
+    servicesClearResetPerephr(LSM303DLHC_I2C);
 
     servicesEnablePerephr(LSM303DLHC_I2C);
 

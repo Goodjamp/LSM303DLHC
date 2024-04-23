@@ -4,11 +4,66 @@
 #include "stm32f411xe.h"
 #include "stm32f4xx_ll_bus.h"
 
+bool servicesSetResetPerephr(void *pereph)
+{
+    uint32_t perepAddress;
+    bool result = true;
+
+    memcpy(&perepAddress, &pereph, sizeof(perepAddress));
+
+	switch (perepAddress) {
+    case I2C1_BASE:
+        RCC->APB1RSTR |= RCC_APB1RSTR_I2C1RST;
+        break;
+
+    case I2C2_BASE:
+        RCC->APB1RSTR |= RCC_APB1RSTR_I2C2RST;
+        break;
+
+    case I2C3_BASE:
+        RCC->APB1RSTR |= RCC_APB1RSTR_I2C3RST;
+        break;
+
+	default:
+	    result = false;
+	}
+
+	return result;
+}
+
+bool servicesClearResetPerephr(void *pereph)
+{
+    uint32_t perepAddress;
+    bool result = true;
+
+    memcpy(&perepAddress, &pereph, sizeof(perepAddress));
+
+	switch (perepAddress) {
+    case I2C1_BASE:
+        RCC->APB1RSTR &= ~(RCC_APB1RSTR_I2C1RST);
+        break;
+
+    case I2C2_BASE:
+        RCC->APB1RSTR &= ~(RCC_APB1RSTR_I2C2RST);
+        break;
+
+    case I2C3_BASE:
+        RCC->APB1RSTR &= ~(RCC_APB1RSTR_I2C3RST);
+        break;
+
+	default:
+	    result = false;
+	}
+
+	return result;
+}
+
 bool servicesEnablePerephr(void *pereph)
 {
     uint32_t perepAddress;
-    memcpy(&perepAddress, &pereph, sizeof(perepAddress));
     bool result = true;
+	
+	memcpy(&perepAddress, &pereph, sizeof(perepAddress));
 
     switch (perepAddress) {
     case TIM2_BASE:

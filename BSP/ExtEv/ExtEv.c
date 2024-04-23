@@ -6,7 +6,6 @@
 #include "stm32f4xx_ll_gpio.h"
 #include "BSP.h"
 #include "services.h"
-#include "DebugServices.h"
 #include "ExtEv.h"
 
 static ExtEvLsm303dlhcSettings lsm303dlhcSettings;

@@ -12,6 +12,7 @@ void i2cTransactionComplete(bool txSuccess);
 void extEvDrdy(void);
 volatile bool txCInProcess = false;
 Lsm303dlhcH lsm3030glhcHandler;
+volatile bool isInit = false;
 
 I2cSettings i2cLsm303dlhcSettings = {
     .lsm303dlhc.cb = {i2cTransactionComplete},
@@ -22,7 +23,7 @@ ExtEvSettings extEvLsm303dlhcSettings = {
 
 void i2cTransactionComplete(bool txSuccess)
 {
-    if (txSuccess ==false) {
+    if (txSuccess == false) {
         return;
     }
     txCInProcess = false;
@@ -31,6 +32,9 @@ void i2cTransactionComplete(bool txSuccess)
 
 void extEvDrdy(void)
 {
+    if (isInit == false) {
+        return;
+    }
     lsm303dlhcDrdy(&lsm3030glhcHandler);
 }
 
@@ -42,29 +46,32 @@ bool lsm3030dlhcI2cTx(uint8_t devAdd, uint8_t *data, uint8_t dataNumber)
     return result == I2C_OK;
 }
 
-bool lsm3030dlhcI2cRx(uint8_t devAdd, uint8_t txData, uint8_t *data, uint8_t dataNumber)
+bool lsm3030dlhcI2cRx(uint8_t devAdd, uint8_t *txData, uint8_t *data, uint8_t dataNumber)
 {
     I2cResult result;
 
-    result = i2cRx(I2C_TARGET_LSM303DLHC, devAdd, &txData, 1, data, dataNumber);
+    result = i2cRx(I2C_TARGET_LSM303DLHC, devAdd, txData, 1, data, dataNumber);
     return result == I2C_OK;
 }
 
-#define DEVICE_ADDREEE    0x1E
-
-void main(void)
+void lsm303dlhcMMesCompleteCb(Lsm303dlhcMagnetic rawMagnetic, uint16_t angle)
 {
-    uint8_t address = 0x00;
-    uint8_t rxBuff[12];
+    static volatile int16_t mX;
+    static volatile int16_t mY;
+    static volatile int16_t mZ;
+    debugServicesPinSet(DebugPin1);
+    mX = rawMagnetic.x;
+    mY = rawMagnetic.y;
+    mZ = rawMagnetic.z;
+    debugServicesPinClear(DebugPin1);
+}
 
-    /* Configure the system clock */
-    systemClockInit();
-    debugServicesInit(NULL);
-
-    i2cInit(I2C_TARGET_LSM303DLHC, i2cLsm303dlhcSettings);
-    extEvInit(EXT_EV_TARGET_LSM303DLHC, extEvLsm303dlhcSettings);
-    //lsm303dlhcMInit(&lsm3030glhcHandler, lsm3030dlhcI2cTx, lsm3030dlhcI2cRx);
+void testI2C(void)
+{
+#define DEVICE_ADDREEE    0x1E
+    uint8_t addressReg;
     uint8_t txBuff[] = {0x00, 0x07 << 2};
+    uint8_t rxBuff[12];
 
     txCInProcess = true;
     i2cTx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, txBuff, sizeof(txBuff));
@@ -77,16 +84,43 @@ void main(void)
     while (txCInProcess){}
 
     for (;;){
-        /*
         txCInProcess = true;
         i2cTx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, txBuff, sizeof(txBuff));
         while (txCInProcess){}
+
         txCInProcess = true;
-        i2cRx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, &address, 1, rxBuff, 1);
+        addressReg = 0;
+        i2cRx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, &addressReg, 1, rxBuff, 1);
         while (txCInProcess){}
-        i2cRx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, &address, 1, rxBuff, 12);
+
         txCInProcess = true;
+        addressReg = 0;
+        i2cRx(I2C_TARGET_LSM303DLHC, DEVICE_ADDREEE, &addressReg, 1, rxBuff, 12);
         while (txCInProcess){}
-        */
+    }
+}
+
+void main(void)
+{
+    /* Configure the system clock */
+    systemClockInit();
+    debugServicesInit(NULL);
+
+    i2cInit(I2C_TARGET_LSM303DLHC, i2cLsm303dlhcSettings);
+    extEvInit(EXT_EV_TARGET_LSM303DLHC, extEvLsm303dlhcSettings);
+
+    volatile uint32_t cnt = 40000;
+
+    while(cnt--){}
+
+    lsm303dlhcMInit(&lsm3030glhcHandler, lsm3030dlhcI2cTx, lsm3030dlhcI2cRx);
+    lsm303dlhcMSetRate(&lsm3030glhcHandler, LSM303DLHC_M_RATE_30);
+    lsm303dlhcMSetGain(&lsm3030glhcHandler, LSM303DLHC_M_GAIN_0);
+    //lsm303dlhcMesMStart(&lsm3030glhcHandler, lsm303dlhcMMesCompleteCb);
+
+    lsm303dlhcMesMStart(&lsm3030glhcHandler, lsm303dlhcMMesCompleteCb);
+
+    isInit = true;
+    for (;;){
     }
 }

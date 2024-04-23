@@ -3,13 +3,7 @@
 
 #include "Lsm303dlhc.h"
 
-#define LSM303DLHC_M_ADDRESS           0x3C
-#define LSM303DLHC_M_TX_ADDRESS        0x3D
-
-#define LSM303DLHC_VAL_IRA_REG_M       0x48
-#define LSM303DLHC_VAL_IRB_REG_M       0x34
-#define LSM303DLHC_VAL_IRC_REG_M       0x33
-#define LSM303DLHC_VERIFY_DATA_SIZE    3
+#define BYTE_TO_UINT16(H, L)    (((H << 8) & 0xFF00) | (L & 0xFF))
 
 typedef enum {
     LSM303DLHC_ADD_CRA_REG_M = 0x00,
@@ -27,6 +21,15 @@ typedef enum {
     LSM303DLHC_ADD_IRC_REG_M = 0x0C,
 } Lsm303dlhcRegAdd;
 
+#define LSM303DLHC_M_ADDRESS                 0x1E
+#define LSM303DLHC_VAL_IRA_REG_M             0x48
+#define LSM303DLHC_VAL_IRB_REG_M             0x34
+#define LSM303DLHC_VAL_IRC_REG_M             0x33
+#define LSM303DLHC_VERIFY_DATA_SIZE          3
+
+/*
+ * Register CRA_REG_M, field DO (conversion rate) description
+ */
 #define LSM303DLHC_CRA_REG_M_DO_POS          2
 #define LSM303DLHC_CRA_REG_M_DO_MASK         7
 #define LSM303DLHC_CRA_REG_M_DO_0_75         0
@@ -38,6 +41,9 @@ typedef enum {
 #define LSM303DLHC_CRA_REG_M_DO_75           6
 #define LSM303DLHC_CRA_REG_M_DO_220          7
 
+/*
+ * Register CRB_REG_M, field GN (gaine) description
+ */
 #define LSM303DLHC_CRB_REG_M_GN_POS          5
 #define LSM303DLHC_CRB_REG_M_GN_MASK         7
 #define LSM303DLHC_CRB_REG_M_GN_0            1
@@ -48,13 +54,19 @@ typedef enum {
 #define LSM303DLHC_CRB_REG_M_GN_5            6
 #define LSM303DLHC_CRB_REG_M_GN_6            7
 
+/*
+ * Register MR_REG_M, field MD (operation mode) description
+ */
 #define LSM303DLHC_MR_REG_M_MD_POS           0
 #define LSM303DLHC_MR_REG_M_MD_MASK          3
 #define LSM303DLHC_MR_REG_M_MD_CONT_CONV     0
 #define LSM303DLHC_MR_REG_M_MD_SINGL_CONV    1
 #define LSM303DLHC_MR_REG_M_MD_SLEEP         3
 
-#define LSM303DLHC_BUSSY_CNT_MAX    10000
+/*
+ * The timeoute to cpmplete I2C transaction
+ */
+#define LSM303DLHC_BUSSY_CNT_MAX             10000
 
 static inline bool lsm303dlhcWait(Lsm303dlhcH *handler)
 {
@@ -67,7 +79,10 @@ static inline bool lsm303dlhcWait(Lsm303dlhcH *handler)
 static inline Lsm303dlhcStatus lsm303dlhcGetReg(Lsm303dlhcH *handler, uint8_t address,
                                                 uint8_t *value)
 {
-    if (handler->rxCb(LSM303DLHC_M_ADDRESS, address,
+    handler->regAddress = address;
+
+    handler->bussy = true;
+    if (handler->rxCb(LSM303DLHC_M_ADDRESS, &handler->regAddress,
                       value, 1) == false) {
         return LSM303DLHC_STATUS_CB_ERROR;
     }
@@ -87,7 +102,7 @@ static inline Lsm303dlhcStatus lsm303dlhcSetReg(Lsm303dlhcH *handler, uint8_t ad
 {
     uint8_t txData[] = {address, value};
 
-    handler->bussy = false;
+    handler->bussy = true;
     if (handler->txCb(LSM303DLHC_M_ADDRESS, txData, sizeof(txData)) == false) {
         return LSM303DLHC_STATUS_CB_ERROR;
     }
@@ -120,7 +135,9 @@ Lsm303dlhcStatus lsm303dlhcMInit(Lsm303dlhcH *handler, I2cTxCb txCb, I2cRxCb rxC
     /*
      * Read IRA_REG_M, IRB_REG_M, IRC_REG_M registers to verify that sensor on the line
      */
-    if (handler->rxCb(LSM303DLHC_M_ADDRESS, LSM303DLHC_ADD_IRA_REG_M,
+    handler->regAddress = LSM303DLHC_ADD_IRA_REG_M;
+
+    if (handler->rxCb(LSM303DLHC_M_ADDRESS, &handler->regAddress,
                       verifyData, LSM303DLHC_VERIFY_DATA_SIZE) == false) {
         return LSM303DLHC_STATUS_CB_ERROR;
     }
@@ -170,8 +187,10 @@ Lsm303dlhcStatus lsm303dlhcMesMStop(Lsm303dlhcH *handler)
 
 static inline void lsm303dlhcGetAngle(Lsm303dlhcH *handler)
 {
-    Lsm303dlhcMagnetic magnetic = {0, 0, 0};
-    uint16_t angle = 0;;
+    Lsm303dlhcMagnetic magnetic = {BYTE_TO_UINT16(handler->mData[0], handler->mData[1]),
+                                   BYTE_TO_UINT16(handler->mData[4], handler->mData[5]),
+                                   BYTE_TO_UINT16(handler->mData[2], handler->mData[3])};
+    uint16_t angle = 0;
 
     if (handler->mMesCompleteCb != NULL) {
         handler->mMesCompleteCb(magnetic, angle);
@@ -201,7 +220,8 @@ void lsm303dlhcDrdy(Lsm303dlhcH *handler)
 
     case LSM303DLHC_STATE_MES_BLOCKING:
     case LSM303DLHC_STATE_MES_NO_BLOCKING:
-        handler->rxCb(LSM303DLHC_M_ADDRESS, LSM303DLHC_ADD_OUT_X_H_M,
+        handler->regAddress = LSM303DLHC_ADD_OUT_X_H_M;
+        handler->rxCb(LSM303DLHC_M_ADDRESS, &handler->regAddress,
                       handler->mData, sizeof(handler->mData));
         break;
     }
@@ -279,7 +299,7 @@ Lsm303dlhcStatus lsm303dlhcMSetRate(Lsm303dlhcH *handler, Lsm303dlhcMRate rate)
     /*
      * Read for verify Rate;
      */
-    result = lsm303dlhcGetReg(handler, LSM303DLHC_ADD_CRB_REG_M, &rateRx);
+    result = lsm303dlhcGetReg(handler, LSM303DLHC_ADD_CRA_REG_M, &rateRx);
     if (result != LSM303DLHC_STATUS_OK) {
         return result;
     }
@@ -349,7 +369,7 @@ Lsm303dlhcStatus lsm303dlhcMSetGain(Lsm303dlhcH *handler, Lsm303dlhcMGain gain)
     /*
      * Set Gain
      */
-    result = lsm303dlhcSetReg(handler, LSM303DLHC_ADD_CRA_REG_M, gainTx);
+    result = lsm303dlhcSetReg(handler, LSM303DLHC_ADD_CRB_REG_M, gainTx);
     if (result != LSM303DLHC_STATUS_OK)
     {
         return result;

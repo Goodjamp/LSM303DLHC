@@ -5,14 +5,14 @@
 #include <stdbool.h>
 
 typedef struct {
-    uint16_t x;
-    uint16_t y;
-    uint16_t z;
+    int16_t x;
+    int16_t y;
+    int16_t z;
 } Lsm303dlhcMagnetic;
 
 typedef bool (*I2cTxCb)(uint8_t devAdd, uint8_t *data, uint8_t dataNumber);
-typedef bool (*I2cRxCb)(uint8_t devAdd, uint8_t txData, uint8_t *data, uint8_t dataNumber);
-typedef bool (*Lsm303dlhcMMesCompleteCb)(Lsm303dlhcMagnetic rawMagnetic, uint16_t angle);
+typedef bool (*I2cRxCb)(uint8_t devAdd, uint8_t *txData, uint8_t *data, uint8_t dataNumber);
+typedef void (*Lsm303dlhcMMesCompleteCb)(Lsm303dlhcMagnetic rawMagnetic, uint16_t angle);
 
 typedef enum {
     LSM303DLHC_STATE_NON,
@@ -24,9 +24,10 @@ typedef struct {
     I2cTxCb txCb;
     I2cRxCb rxCb;
     Lsm303dlhcMMesCompleteCb mMesCompleteCb;
-    Lsm303dlhcState state;
-    bool bussy;
-    bool dataReady;
+    volatile Lsm303dlhcState state;
+    volatile bool bussy;
+    volatile bool dataReady;
+    uint8_t regAddress;
     uint8_t mData[6];
 } Lsm303dlhcH;
 

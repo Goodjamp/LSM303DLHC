@@ -6,5 +6,7 @@
 
 bool servicesEnablePerephr(void *pereph);
 bool servicesDisablePerephr(void *pereph);
+bool servicesSetResetPerephr(void *pereph);
+bool servicesClearResetPerephr(void *pereph);
 
 #endif
